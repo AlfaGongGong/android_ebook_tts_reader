@@ -6,7 +6,6 @@ import asyncio
 import hashlib
 import logging
 from pathlib import Path
-from typing import Optional
 
 from .config import CACHE_DIR, DEFAULT_LANGUAGE, DEFAULT_VOICE
 
@@ -79,8 +78,18 @@ class EdgeTTSEngine:
             return output_path
 
         self.ensure_loaded()
-        logger.info("Synthesising chunk %s with Edge TTS voice %s …", chunk_id, self.voice)
-        asyncio.run(self._write_audio(text, output_path))
+        logger.info(
+            "Synthesising chunk %s with Edge TTS voice %s …",
+            chunk_id,
+            self.voice,
+        )
+        temp_path = output_path.with_suffix(f"{output_path.suffix}.tmp")
+        try:
+            asyncio.run(self._write_audio(text, temp_path))
+            temp_path.replace(output_path)
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
         return output_path
 
     # ------------------------------------------------------------------
