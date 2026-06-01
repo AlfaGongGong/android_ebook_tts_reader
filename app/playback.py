@@ -2,7 +2,7 @@
 
 Architecture
 ------------
-* A daemon *synthesis thread* iterates over pending chunks, calls XTTSEngine to
+* A daemon *synthesis thread* iterates over pending chunks, calls PiperEngine to
   produce WAV files, and stores results in ``_ready``.
 * A Kivy Clock interval (running on the main thread) polls every
   ``_POLL_INTERVAL`` seconds.  If the current sound has finished and the next
@@ -23,7 +23,7 @@ from typing import Callable, Dict, List, Optional
 from .audio_player import AudioPlayer
 from .config import PREFETCH_BLOCKS
 from .models import PlaybackChunk, ReadingPosition
-from .tts_engine import XTTSEngine
+from .tts_engine import PiperEngine
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +37,12 @@ class PlaybackController:
         self,
         on_progress: Optional[Callable[[ReadingPosition], None]] = None,
         on_status: Optional[Callable[[str], None]] = None,
-        engine: Optional[XTTSEngine] = None,
+        engine: Optional[PiperEngine] = None,
         prefetch_blocks: int = PREFETCH_BLOCKS,
     ) -> None:
         self._on_progress = on_progress
         self._on_status = on_status
-        self.engine = engine or XTTSEngine()
+        self.engine = engine or PiperEngine()
         self.prefetch = prefetch_blocks
 
         # Chunk list and navigation indices
@@ -234,4 +234,3 @@ class PlaybackController:
             Clock.schedule_once(lambda *_: self._on_status(text), 0)  # type: ignore[misc]
         except Exception:
             pass
-

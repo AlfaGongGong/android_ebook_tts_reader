@@ -1,6 +1,6 @@
 # Android Ebook TTS Reader
 
-A Kivy-based Android-first ebook reader built with **Python 3** on **Ubuntu**, packaged with **Buildozer**.  The application reads ebooks aloud using **Coqui XTTS v2**, with punctuation-aware pauses, buffered synthesis, and resumable playback.
+A Kivy-based Android-first ebook reader built with **Python 3** on **Ubuntu**, packaged with **Buildozer**. The application reads ebooks aloud using **Piper TTS**, with punctuation-aware pauses, buffered synthesis, resumable playback, and WAV caching.
 
 ## What works now
 
@@ -15,12 +15,13 @@ A Kivy-based Android-first ebook reader built with **Python 3** on **Ubuntu**, p
 | Prefetch (N+1 / N+2 ahead) | ✅ working |
 | WAV cache (SHA-based, survives restarts) | ✅ working |
 | Audio playback via Kivy SoundLoader | ✅ working (desktop) |
-| Lazy XTTS model loading | ✅ working |
+| Lazy Piper voice loading | ✅ working |
 | Play / Pause / Resume / Stop controls | ✅ working |
 | Native file picker (plyer) | ✅ desktop + Android best-effort |
 | Android storage permissions (pyjnius) | ✅ on-device |
 | `buildozer.spec` | ✅ included |
-| XTTS on-device synthesis (Android) | ⚠️ not feasible yet (see below) |
+| Piper synthesis (desktop/dev install) | ✅ working |
+| Piper on-device synthesis (Android build) | ⚠️ not packaged yet (see below) |
 
 ## Project structure
 
@@ -40,7 +41,7 @@ android_ebook_tts_reader/
 │   ├── text_chunker.py      # Sentence → PlaybackChunk grouping
 │   ├── audio_player.py      # Kivy SoundLoader wrapper
 │   ├── playback.py          # Buffered controller (synth thread + Clock poll)
-│   ├── tts_engine.py        # Coqui XTTS adapter (lazy load + WAV cache)
+│   ├── tts_engine.py        # Piper adapter (lazy load + auto-download + WAV cache)
 │   ├── android_utils.py     # Permission requests + plyer file picker
 │   └── ui/
 │       ├── app_view.py      # ReaderRoot widget logic
@@ -70,7 +71,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-> **Note:** `coqui-tts` pulls in PyTorch (~2 GB) and may take a while.
+> **Note:** `piper-tts` is much lighter than XTTS, but the first synthesis still downloads the default voice files on demand.
 > For UI-only development you can skip it:
 > ```bash
 > pip install kivy plyer ebooklib beautifulsoup4 lxml platformdirs
@@ -95,7 +96,7 @@ What you can do:
 
 1. Book is parsed into chapters and sentences.
 2. Sentences are grouped into `PlaybackChunk`s (~4 sentences each).
-3. A background synthesis thread calls XTTS for each chunk; results are cached by SHA-256 hash of the text.
+3. A background synthesis thread calls Piper for each chunk; results are cached by SHA-256 hash of the selected voice and text.
 4. A Kivy Clock poll (every 300 ms) checks whether the current sound has finished and the next synthesised WAV is ready.
 5. When both conditions are met, playback advances automatically.
 6. Reading position is persisted after each chunk so the app can resume where it left off.
@@ -119,30 +120,30 @@ The app requests:
 
 * `READ_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE` – book files and WAV cache
 * `MANAGE_EXTERNAL_STORAGE` – needed on API 30+ for broad storage access
-* `INTERNET` – model download (if run on-device in a future iteration)
+* `INTERNET` – Piper voice download on the first synthesis run
 
 ### File picker on Android
 
 `plyer.filechooser` opens an `Intent.ACTION_GET_CONTENT` dialog.  On Android 10+, the returned path may be a `content://` URI; the app attempts to resolve it to a real filesystem path via `ContentResolver`.  If resolution fails, the raw URI is passed through (loading will likely fail with a clear error message).
 
-## XTTS / synthesis notes
+## Piper / synthesis notes
 
 ### Desktop (Ubuntu)
 
-XTTS v2 works well on desktop with a CUDA GPU or a fast CPU.  The first run downloads the model weights (~1.8 GB).  Subsequent runs load from cache instantly.
+The app now uses the default Piper voice `hr_HR-filip-medium`. On the first synthesis run it downloads the `.onnx` model and matching `.onnx.json` config into the app data directory, then reuses those files on later runs.
 
 ### Android (current limitation)
 
-Running full Coqui XTTS on-device on Android is **not currently feasible** because:
+The repository's Android build still does **not** package Piper on-device because:
 
-1. PyTorch for Android is not packaged as a python-for-android recipe.
-2. The model requires ~2 GB RAM.
+1. `piper-tts` depends on ONNX Runtime.
+2. This project does not yet ship an Android packaging path for that dependency in `buildozer.spec`.
 
 **Workarounds / roadmap:**
 
-* **Pre-synthesise** all chunks on desktop and copy the WAV cache to the device.
-* **Off-device server** – run `main.py` on a desktop/server and stream WAV files over HTTP.
-* **Lighter model** – evaluate `piper-tts` or `edge-tts` (both have smaller footprints).
+* **Pre-synthesise** chunks on desktop and copy the WAV cache plus downloaded Piper voice files to the device.
+* **Add Android packaging support** for Piper/ONNX Runtime in a future iteration.
+* **Off-device server** – run the app on a desktop/server and move synthesis off-device.
 
 ## Persistence
 
@@ -166,11 +167,10 @@ Schema: `book_path`, `chapter_index`, `sentence_index`, `chunk_index`, `char_off
 ## Known limitations
 
 * Android file picker returns `content://` URIs that need OS-level resolution.
-* XTTS synthesis is skipped gracefully if the library is not installed – WAV cache still plays.
+* Piper synthesis is skipped gracefully if the library is not installed or voice download/loading fails – existing WAV cache still plays.
 * Chapter detection accuracy depends on how consistently the source book uses heading text.
 * The Kivy `SoundLoader` audio backend on some Linux setups requires GStreamer plugins; install `gstreamer1.0-plugins-good` if audio is silent.
 
 ## License
 
 No license has been added yet.  Add one before distribution.
-

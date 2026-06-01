@@ -14,12 +14,11 @@ version = 0.2.0
 
 # ─── Requirements ──────────────────────────────────────────────────────────────
 # Core runtime requirements for the Android build.
-# NOTE: coqui-tts (Coqui TTS / XTTS) depends on PyTorch which is extremely
-# large and not currently packaged for python-for-android.  Synthesis on-device
-# is therefore not supported in this iteration.  The app will gracefully degrade:
-# the synthesis worker will log an ImportError and skip chunks.
-# To enable on-device TTS you would need a lighter model (e.g. piper-tts) or an
-# off-device inference server.
+# NOTE: desktop/dev installs use piper-tts, but this Android build still omits
+# it because onnxruntime is not currently packaged in this project for
+# python-for-android. The app therefore degrades gracefully on-device: the
+# synthesis worker will log an ImportError and skip chunks until a mobile-ready
+# Piper/ONNX Runtime packaging path is added.
 requirements = python3,kivy==2.3.0,pyjnius,plyer,ebooklib,beautifulsoup4,lxml,platformdirs
 
 # ─── Display ───────────────────────────────────────────────────────────────────

@@ -1,77 +1,89 @@
-"""Coqui XTTS integration with lazy loading and synthesis cache.
+"""Piper integration with lazy loading, voice download, and synthesis cache.
 
 Mobile optimisation notes
 -------------------------
-* **Lazy loading**: The heavy ``TTS`` import and model-weight download/load
-  happen only on the first synthesis call, not at app startup.
+* **Lazy loading**: Piper is imported and the voice model is loaded only on the
+  first synthesis call, not at app startup.
 * **WAV cache**: Every synthesised chunk is stored under a SHA-256 key derived
-  from the language + text.  Repeated playback of the same content (e.g.
+  from the selected voice + text. Repeated playback of the same content (e.g.
   after a resume) costs zero synthesis time.
 * **Prefetch cap**: ``PREFETCH_BLOCKS`` is kept low (default 2) so the
   background thread does not exhaust RAM on low-memory Android devices.
-* **Model swap**: For devices where the full XTTS v2 model (~1.8 GB) is too
-  large, replace ``_DEFAULT_MODEL`` with a lighter alternative or route
-  synthesis to an off-device HTTP TTS server and save the response as a WAV.
+* **Voice bootstrap**: The default Piper voice is downloaded automatically on
+  first use if the ONNX model/config are not already present in the app data
+  directory.
 """
 
 from __future__ import annotations
 
 import hashlib
 import logging
+import re
+import shutil
+import wave
 from pathlib import Path
 from typing import Optional
+from urllib.request import urlopen
 
-from .config import CACHE_DIR, DEFAULT_LANGUAGE
+from .config import CACHE_DIR, DEFAULT_LANGUAGE, PIPER_VOICE_DIR, PIPER_VOICE_NAME
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "tts_models/multilingual/multi-dataset/xtts_v2"
+_VOICE_PATTERN = re.compile(
+    r"^(?P<lang_family>[^_]+)_(?P<lang_region>[^-]+)-(?P<voice_name>[^-]+)-(?P<voice_quality>.+)$"
+)
+_VOICE_URL_FORMAT = (
+    "https://huggingface.co/rhasspy/piper-voices/resolve/main/"
+    "{lang_family}/{lang_code}/{voice_name}/{voice_quality}/"
+    "{voice_code}{extension}?download=true"
+)
 
 
-class XTTSEngine:
-    """Coqui XTTS wrapper with lazy loading and per-text WAV caching."""
+class PiperEngine:
+    """Piper wrapper with lazy loading, voice bootstrap, and per-text WAV caching."""
 
     def __init__(
         self,
         language: str = DEFAULT_LANGUAGE,
-        model_name: str = _DEFAULT_MODEL,
-        speaker_wav: Optional[str] = None,
+        voice_name: str = PIPER_VOICE_NAME,
+        voice_dir: Path = PIPER_VOICE_DIR,
     ) -> None:
         self.language = language
-        self.model_name = model_name
-        self.speaker_wav = speaker_wav
-        self._tts = None
+        self.voice_name = voice_name
+        self.voice_dir = Path(voice_dir)
+        self._voice = None
 
     # ------------------------------------------------------------------
     # Public helpers
     # ------------------------------------------------------------------
 
     def is_loaded(self) -> bool:
-        """Return ``True`` if the model is already in memory."""
-        return self._tts is not None
+        """Return ``True`` if the Piper voice is already in memory."""
+        return self._voice is not None
 
     def ensure_loaded(self) -> None:
-        """Lazily load the TTS model.
+        """Lazily load the Piper voice.
 
-        This is a heavy operation (network download on first run, several
-        seconds of CPU/GPU loading time).  Always call from a worker thread,
-        never from the Kivy main thread.
+        This may download the voice assets on the first run and should always be
+        called from a worker thread, never from the Kivy main thread.
         """
-        if self._tts is not None:
+        if self._voice is not None:
             return
+        model_path = self._ensure_voice_files()
         try:
-            from TTS.api import TTS  # type: ignore
-            logger.info("Loading XTTS model: %s …", self.model_name)
-            self._tts = TTS(self.model_name)
-            logger.info("XTTS model ready.")
+            from piper import PiperVoice  # type: ignore
+
+            logger.info("Loading Piper voice: %s …", model_path.name)
+            self._voice = PiperVoice.load(model_path)
+            logger.info("Piper voice ready.")
         except ImportError as exc:
             raise RuntimeError(
-                "Coqui TTS library not found. "
-                "Install it with:  pip install coqui-tts>=0.25.0"
+                "Piper TTS library not found. "
+                "Install it with: pip install piper-tts>=1.4.2"
             ) from exc
         except Exception as exc:
             raise RuntimeError(
-                f"XTTS model failed to load: {exc}\n"
+                f"Piper voice failed to load: {exc}\n"
                 "Ensure model assets are downloaded and all dependencies are met."
             ) from exc
 
@@ -79,12 +91,11 @@ class XTTSEngine:
         self,
         text: str,
         chunk_id: str,
-        speaker_wav: Optional[str] = None,
     ) -> Path:
         """Return path to a WAV for *text*, synthesising only if not cached.
 
-        The output filename is derived from a hash of the language and text so
-        the same text is never re-synthesised even across app restarts.
+        The output filename is derived from a hash of the selected voice and
+        text so the same text is never re-synthesised even across app restarts.
         """
         output_path = self._cache_path(text)
         if output_path.exists():
@@ -92,17 +103,9 @@ class XTTSEngine:
             return output_path
 
         self.ensure_loaded()
-        effective_speaker = speaker_wav or self.speaker_wav
-        kwargs: dict = dict(
-            text=text,
-            file_path=str(output_path),
-            language=self.language,
-        )
-        if effective_speaker:
-            kwargs["speaker_wav"] = effective_speaker
-
         logger.info("Synthesising chunk %s …", chunk_id)
-        self._tts.tts_to_file(**kwargs)  # type: ignore[union-attr]
+        with wave.open(str(output_path), "wb") as wav_file:
+            self._voice.synthesize_wav(text, wav_file)  # type: ignore[union-attr]
         return output_path
 
     # ------------------------------------------------------------------
@@ -110,6 +113,48 @@ class XTTSEngine:
     # ------------------------------------------------------------------
 
     def _cache_path(self, text: str) -> Path:
-        key = hashlib.sha256(f"{self.language}:{text}".encode()).hexdigest()[:24]
+        key = hashlib.sha256(f"{self.voice_name}:{self.language}:{text}".encode()).hexdigest()[:24]
         return CACHE_DIR / f"tts_{key}.wav"
 
+    def _ensure_voice_files(self) -> Path:
+        model_path = self.voice_dir / f"{self.voice_name}.onnx"
+        config_path = self.voice_dir / f"{self.voice_name}.onnx.json"
+        voice_parts = self._voice_parts()
+
+        for path, extension in ((model_path, ".onnx"), (config_path, ".onnx.json")):
+            if path.exists() and path.stat().st_size > 0:
+                continue
+            url = _VOICE_URL_FORMAT.format(
+                voice_code=self.voice_name,
+                extension=extension,
+                **voice_parts,
+            )
+            logger.info("Downloading Piper voice asset: %s", path.name)
+            try:
+                with urlopen(url) as response, open(path, "wb") as output_file:
+                    shutil.copyfileobj(response, output_file)
+            except Exception as exc:
+                if path.exists():
+                    path.unlink()
+                raise RuntimeError(
+                    f"Failed to download Piper voice asset '{path.name}': {exc}"
+                ) from exc
+
+        return model_path
+
+    def _voice_parts(self) -> dict:
+        match = _VOICE_PATTERN.match(self.voice_name)
+        if match is None:
+            raise RuntimeError(
+                "Unsupported Piper voice name format. "
+                "Expected <lang>_<REGION>-<name>-<quality>."
+            )
+
+        lang_family = match.group("lang_family")
+        lang_region = match.group("lang_region")
+        return {
+            "lang_family": lang_family,
+            "lang_code": f"{lang_family}_{lang_region}",
+            "voice_name": match.group("voice_name"),
+            "voice_quality": match.group("voice_quality"),
+        }
