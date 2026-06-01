@@ -19,8 +19,6 @@ ENV/
 # Kivy / Buildozer
 .bin/
 .buildozer/
-.spec
-buildozer.spec
 
 # Android / generated assets
 android/.gradle/
