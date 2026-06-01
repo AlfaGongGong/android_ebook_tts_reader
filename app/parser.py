@@ -6,9 +6,6 @@ import re
 from pathlib import Path
 from typing import List
 
-from ebooklib import epub
-from bs4 import BeautifulSoup
-
 from .models import Book, Chapter
 
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
@@ -37,6 +34,15 @@ def parse_txt(path: Path) -> Book:
 
 
 def parse_epub(path: Path) -> Book:
+    try:
+        from ebooklib import epub
+        from bs4 import BeautifulSoup
+    except ImportError as exc:
+        raise RuntimeError(
+            "EPUB support requires ebooklib and beautifulsoup4. "
+            "Install project dependencies with: pip install -r requirements.txt"
+        ) from exc
+
     book = epub.read_epub(str(path))
     chapters: List[Chapter] = []
 

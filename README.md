@@ -96,7 +96,7 @@ python3 main.py inspect /absolute/path/to/book.epub
 # read from terminal and play audio if a backend is available
 python3 main.py read /absolute/path/to/book.epub --chapter 0 --sentence 0
 
-# headless mode: synthesize and print chunks without audio playback
+# headless mode: print chunks without synthesis or audio playback
 python3 main.py read /absolute/path/to/book.epub --no-audio --max-chunks 2
 ```
 

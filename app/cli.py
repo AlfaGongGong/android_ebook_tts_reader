@@ -9,7 +9,6 @@ from pathlib import Path
 
 from .audio_player import AudioPlayer
 from .book_sources import find_books
-from .parser import load_book
 from .state import AppState
 from .text_chunker import chunk_book
 from .tts_engine import XTTSEngine
@@ -75,6 +74,8 @@ def _list_books() -> int:
 
 
 def _inspect_book(book_path: str) -> int:
+    from .parser import load_book
+
     book = load_book(Path(book_path))
     print(f"Title: {book.title}")
     print(f"Path: {book.path}")
@@ -92,6 +93,8 @@ def _read_book(
     max_chunks: int,
     no_audio: bool,
 ) -> int:
+    from .parser import load_book
+
     book = load_book(Path(book_path))
     state = AppState()
     state.set_book(book)
@@ -113,7 +116,7 @@ def _read_book(
     )
 
     start_index = _resolve_start_chunk(chunks, chapter_index, sentence_index)
-    engine = XTTSEngine()
+    engine = XTTSEngine() if not no_audio else None
     player = AudioPlayer()
 
     print(f"Reading: {book.title}")
@@ -135,6 +138,9 @@ def _read_book(
                 f"| sentence={chunk.sentence_start}-{chunk.sentence_end} ---"
             )
             print(chunk.text)
+            if no_audio:
+                processed += 1
+                continue
             wav_path = engine.synthesize_to_file(chunk.text, chunk.id)
             print(f"Audio: {wav_path}")
             if not no_audio:
