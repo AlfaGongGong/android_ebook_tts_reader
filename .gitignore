@@ -1,0 +1,49 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Kivy / Buildozer
+.bin/
+.buildozer/
+.spec
+buildozer.spec
+
+# Android / generated assets
+android/.gradle/
+android/build/
+android/.cxx/
+
+# Audio cache and generated artifacts
+cache/
+data/cache/
+*.wav
+*.mp3
+
+# IDEs / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and runtime files
+*.log
+*.tmp
+*.sqlite3

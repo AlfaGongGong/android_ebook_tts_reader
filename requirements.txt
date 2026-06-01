@@ -1,0 +1,10 @@
+kivy>=2.3.0
+buildozer>=1.5.0
+ebooklib>=0.18
+beautifulsoup4>=4.12.3
+lxml>=5.2.2
+coqui-tts>=0.25.0
+soundfile>=0.12.1
+pydub>=0.25.1
+simpleaudio>=1.0.4
+platformdirs>=4.2.2
