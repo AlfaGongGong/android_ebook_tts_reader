@@ -2,8 +2,8 @@
 
 Architecture
 ------------
-* A daemon *synthesis thread* iterates over pending chunks, calls XTTSEngine to
-  produce WAV files, and stores results in ``_ready``.
+* A daemon *synthesis thread* iterates over pending chunks, calls EdgeTTSEngine
+  to produce audio files, and stores results in ``_ready``.
 * A Kivy Clock interval (running on the main thread) polls every
   ``_POLL_INTERVAL`` seconds.  If the current sound has finished and the next
   chunk is ready, playback advances automatically.
@@ -23,7 +23,7 @@ from typing import Callable, Dict, List, Optional
 from .audio_player import AudioPlayer
 from .config import PREFETCH_BLOCKS
 from .models import PlaybackChunk, ReadingPosition
-from .tts_engine import XTTSEngine
+from .tts_engine import EdgeTTSEngine
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +37,12 @@ class PlaybackController:
         self,
         on_progress: Optional[Callable[[ReadingPosition], None]] = None,
         on_status: Optional[Callable[[str], None]] = None,
-        engine: Optional[XTTSEngine] = None,
+        engine: Optional[EdgeTTSEngine] = None,
         prefetch_blocks: int = PREFETCH_BLOCKS,
     ) -> None:
         self._on_progress = on_progress
         self._on_status = on_status
-        self.engine = engine or XTTSEngine()
+        self.engine = engine or EdgeTTSEngine()
         self.prefetch = prefetch_blocks
 
         # Chunk list and navigation indices
@@ -50,7 +50,7 @@ class PlaybackController:
         self._next_play: int = 0       # next chunk index to hand off to audio player
         self._current_play: int = -1   # chunk index currently (or last) playing
 
-        # Synthesis results: chunk-index → wav-path (empty string = synthesis failed)
+        # Synthesis results: chunk-index → audio-path (empty string = synthesis failed)
         self._ready: Dict[int, str] = {}
         self._ready_lock = threading.Lock()
 
@@ -234,4 +234,3 @@ class PlaybackController:
             Clock.schedule_once(lambda *_: self._on_status(text), 0)  # type: ignore[misc]
         except Exception:
             pass
-

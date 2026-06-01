@@ -1,9 +1,4 @@
-"""Cross-platform audio playback wrapper using Kivy's SoundLoader.
-
-On desktop (Linux/macOS/Windows) Kivy uses GStreamer or SDL2.
-On Android Kivy uses the android audio backend (MediaPlayer).
-Both support WAV files without additional native dependencies.
-"""
+"""Cross-platform audio playback wrapper using Kivy's SoundLoader."""
 
 from __future__ import annotations
 
@@ -14,15 +9,15 @@ logger = logging.getLogger(__name__)
 
 
 class AudioPlayer:
-    """Thin wrapper around Kivy's ``SoundLoader`` for sequential WAV playback.
+    """Thin wrapper around Kivy's ``SoundLoader`` for sequential audio playback.
 
     Usage::
 
         player = AudioPlayer()
-        player.play("/path/to/chunk.wav")
+        player.play("/path/to/chunk.mp3")
         # ... later ...
         if not player.is_playing():
-            player.play("/path/to/next_chunk.wav")
+            player.play("/path/to/next_chunk.mp3")
         player.stop()
     """
 
@@ -34,8 +29,8 @@ class AudioPlayer:
     # Public API
     # ------------------------------------------------------------------
 
-    def play(self, wav_path: str) -> bool:
-        """Load *wav_path* and start playback.
+    def play(self, audio_path: str) -> bool:
+        """Load *audio_path* and start playback.
 
         Stops any currently playing sound first.
         Returns ``True`` if playback started successfully.
@@ -45,16 +40,16 @@ class AudioPlayer:
             from kivy.core.audio import SoundLoader  # imported lazily so tests can run without a display
         except Exception as exc:
             logger.warning("Kivy audio import failed: %s", exc)
-            return self._play_with_simpleaudio(wav_path)
+            return self._play_with_simpleaudio(audio_path)
 
-        sound = SoundLoader.load(wav_path)
+        sound = SoundLoader.load(audio_path)
         if sound is None:
-            logger.warning("SoundLoader could not load: %s", wav_path)
-            return self._play_with_simpleaudio(wav_path)
+            logger.warning("SoundLoader could not load: %s", audio_path)
+            return self._play_with_simpleaudio(audio_path)
         self._sound = sound
         self._backend = "kivy"
         sound.play()
-        logger.debug("Playing: %s", wav_path)
+        logger.debug("Playing: %s", audio_path)
         return True
 
     def stop(self) -> None:
@@ -80,7 +75,13 @@ class AudioPlayer:
         except Exception:
             return False
 
-    def _play_with_simpleaudio(self, wav_path: str) -> bool:
+    def _play_with_simpleaudio(self, audio_path: str) -> bool:
+        if not audio_path.lower().endswith(".wav"):
+            logger.warning(
+                "simpleaudio fallback supports WAV files only, cannot play: %s",
+                audio_path,
+            )
+            return False
         try:
             import simpleaudio
         except Exception as exc:
@@ -88,13 +89,13 @@ class AudioPlayer:
             return False
 
         try:
-            wave_object = simpleaudio.WaveObject.from_wave_file(wav_path)
+            wave_object = simpleaudio.WaveObject.from_wave_file(audio_path)
             self._sound = wave_object.play()
             self._backend = "simpleaudio"
-            logger.debug("Playing with simpleaudio: %s", wav_path)
+            logger.debug("Playing with simpleaudio: %s", audio_path)
             return True
         except Exception as exc:
-            logger.warning("simpleaudio could not play %s: %s", wav_path, exc)
+            logger.warning("simpleaudio could not play %s: %s", audio_path, exc)
             self._sound = None
             self._backend = None
             return False

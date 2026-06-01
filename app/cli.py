@@ -11,7 +11,7 @@ from .audio_player import AudioPlayer
 from .book_sources import find_books
 from .state import AppState
 from .text_chunker import chunk_book
-from .tts_engine import XTTSEngine
+from .tts_engine import EdgeTTSEngine
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     read_parser.add_argument(
         "--no-audio",
         action="store_true",
-        help="Only synthesize and print chunks without playing audio.",
+        help="Only print chunks without synthesis or audio playback.",
     )
     return parser
 
@@ -116,7 +116,7 @@ def _read_book(
     )
 
     start_index = _resolve_start_chunk(chunks, chapter_index, sentence_index)
-    engine = XTTSEngine() if not no_audio else None
+    engine = EdgeTTSEngine() if not no_audio else None
     player = AudioPlayer()
 
     print(f"Reading: {book.title}")
@@ -141,10 +141,10 @@ def _read_book(
             if no_audio:
                 processed += 1
                 continue
-            wav_path = engine.synthesize_to_file(chunk.text, chunk.id)
-            print(f"Audio: {wav_path}")
+            audio_path = engine.synthesize_to_file(chunk.text, chunk.id)
+            print(f"Audio: {audio_path}")
             if not no_audio:
-                started = player.play(str(wav_path))
+                started = player.play(str(audio_path))
                 if not started:
                     print("Audio playback backend is unavailable.", file=sys.stderr)
                     return 1
