@@ -82,6 +82,24 @@ pip install -r requirements.txt
 python3 main.py
 ```
 
+### 4. Run without the GUI
+
+You can now use the project directly from the terminal:
+
+```bash
+# scan default folders
+python3 main.py list
+
+# inspect a single book
+python3 main.py inspect /absolute/path/to/book.epub
+
+# read from terminal and play audio if a backend is available
+python3 main.py read /absolute/path/to/book.epub --chapter 0 --sentence 0
+
+# headless mode: synthesize and print chunks without audio playback
+python3 main.py read /absolute/path/to/book.epub --no-audio --max-chunks 2
+```
+
 What you can do:
 
 * **Scan Books** – scans `~/Books`, `~/Documents`, `~/Downloads` for `.epub` and `.txt` files.
@@ -91,7 +109,7 @@ What you can do:
 * Press **▶ Play** to start synthesis and sequential audio playback.
 * Press **⏸ Pause** / **▶ Resume** / **Stop** to control playback.
 
-### 4. Playback pipeline
+### 5. Playback pipeline
 
 1. Book is parsed into chapters and sentences.
 2. Sentences are grouped into `PlaybackChunk`s (~4 sentences each).
@@ -173,4 +191,3 @@ Schema: `book_path`, `chapter_index`, `sentence_index`, `chunk_index`, `char_off
 ## License
 
 No license has been added yet.  Add one before distribution.
-
