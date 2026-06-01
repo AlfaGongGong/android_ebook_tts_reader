@@ -1,6 +1,6 @@
 # Android Ebook TTS Reader
 
-A Kivy-based Android-first ebook reader built with **Python 3** on **Ubuntu**, packaged with **Buildozer**.  The application reads ebooks aloud using **Coqui XTTS v2**, with punctuation-aware pauses, buffered synthesis, and resumable playback.
+A Kivy-based Android-first ebook reader built with **Python 3** on **Ubuntu**, packaged with **Buildozer**. The application reads ebooks aloud using **Microsoft Edge TTS** with the **`hr-HR-GabrijelaNeural`** voice, buffered synthesis, and resumable playback.
 
 ## What works now
 
@@ -13,14 +13,14 @@ A Kivy-based Android-first ebook reader built with **Python 3** on **Ubuntu**, p
 | Punctuation-aware chunking | ✅ working |
 | Background synthesis thread | ✅ working |
 | Prefetch (N+1 / N+2 ahead) | ✅ working |
-| WAV cache (SHA-based, survives restarts) | ✅ working |
+| Audio cache (SHA-based, survives restarts) | ✅ working |
 | Audio playback via Kivy SoundLoader | ✅ working (desktop) |
-| Lazy XTTS model loading | ✅ working |
+| Lazy Edge TTS client loading | ✅ working |
 | Play / Pause / Resume / Stop controls | ✅ working |
 | Native file picker (plyer) | ✅ desktop + Android best-effort |
 | Android storage permissions (pyjnius) | ✅ on-device |
 | `buildozer.spec` | ✅ included |
-| XTTS on-device synthesis (Android) | ⚠️ not feasible yet (see below) |
+| Edge TTS synthesis (Android, internet required) | ✅ supported |
 
 ## Project structure
 
@@ -40,7 +40,7 @@ android_ebook_tts_reader/
 │   ├── text_chunker.py      # Sentence → PlaybackChunk grouping
 │   ├── audio_player.py      # Kivy SoundLoader wrapper
 │   ├── playback.py          # Buffered controller (synth thread + Clock poll)
-│   ├── tts_engine.py        # Coqui XTTS adapter (lazy load + WAV cache)
+│   ├── tts_engine.py        # Edge TTS adapter (lazy import + MP3 cache)
 │   ├── android_utils.py     # Permission requests + plyer file picker
 │   └── ui/
 │       ├── app_view.py      # ReaderRoot widget logic
@@ -70,8 +70,8 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-> **Note:** `coqui-tts` pulls in PyTorch (~2 GB) and may take a while.
-> For UI-only development you can skip it:
+> **Note:** Edge TTS is a cloud service, so synthesis requires an internet connection.
+> For UI-only development you can still install the lighter core dependencies:
 > ```bash
 > pip install kivy plyer ebooklib beautifulsoup4 lxml platformdirs
 > ```
@@ -113,8 +113,8 @@ What you can do:
 
 1. Book is parsed into chapters and sentences.
 2. Sentences are grouped into `PlaybackChunk`s (~4 sentences each).
-3. A background synthesis thread calls XTTS for each chunk; results are cached by SHA-256 hash of the text.
-4. A Kivy Clock poll (every 300 ms) checks whether the current sound has finished and the next synthesised WAV is ready.
+3. A background synthesis thread calls Edge TTS with `hr-HR-GabrijelaNeural` for each chunk; results are cached by SHA-256 hash of the voice + text.
+4. A Kivy Clock poll (every 300 ms) checks whether the current sound has finished and the next synthesised audio file is ready.
 5. When both conditions are met, playback advances automatically.
 6. Reading position is persisted after each chunk so the app can resume where it left off.
 
@@ -135,32 +135,27 @@ The resulting APK is in `bin/`.
 
 The app requests:
 
-* `READ_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE` – book files and WAV cache
+* `READ_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE` – book files and cached audio
 * `MANAGE_EXTERNAL_STORAGE` – needed on API 30+ for broad storage access
-* `INTERNET` – model download (if run on-device in a future iteration)
+* `INTERNET` – required for the Edge TTS service
 
 ### File picker on Android
 
 `plyer.filechooser` opens an `Intent.ACTION_GET_CONTENT` dialog.  On Android 10+, the returned path may be a `content://` URI; the app attempts to resolve it to a real filesystem path via `ContentResolver`.  If resolution fails, the raw URI is passed through (loading will likely fail with a clear error message).
 
-## XTTS / synthesis notes
+## Edge TTS notes
 
 ### Desktop (Ubuntu)
 
-XTTS v2 works well on desktop with a CUDA GPU or a fast CPU.  The first run downloads the model weights (~1.8 GB).  Subsequent runs load from cache instantly.
+The app now synthesizes speech through Microsoft's Edge TTS service using the `hr-HR-GabrijelaNeural` voice. The generated audio is cached locally after the first synthesis for each unique chunk.
 
-### Android (current limitation)
+### Android
 
-Running full Coqui XTTS on-device on Android is **not currently feasible** because:
+Edge TTS works on Android as long as the device has internet access. Because synthesis is remote, startup is lighter than the previous Coqui XTTS setup and there is no large model download bundled with the app.
 
-1. PyTorch for Android is not packaged as a python-for-android recipe.
-2. The model requires ~2 GB RAM.
+### Voice
 
-**Workarounds / roadmap:**
-
-* **Pre-synthesise** all chunks on desktop and copy the WAV cache to the device.
-* **Off-device server** – run `main.py` on a desktop/server and stream WAV files over HTTP.
-* **Lighter model** – evaluate `piper-tts` or `edge-tts` (both have smaller footprints).
+The default voice is `hr-HR-GabrijelaNeural`.
 
 ## Persistence
 
@@ -184,7 +179,8 @@ Schema: `book_path`, `chapter_index`, `sentence_index`, `chunk_index`, `char_off
 ## Known limitations
 
 * Android file picker returns `content://` URIs that need OS-level resolution.
-* XTTS synthesis is skipped gracefully if the library is not installed – WAV cache still plays.
+* Edge TTS synthesis requires a working internet connection.
+* If Kivy audio is unavailable, the fallback `simpleaudio` backend can only play `.wav` files.
 * Chapter detection accuracy depends on how consistently the source book uses heading text.
 * The Kivy `SoundLoader` audio backend on some Linux setups requires GStreamer plugins; install `gstreamer1.0-plugins-good` if audio is silent.
 

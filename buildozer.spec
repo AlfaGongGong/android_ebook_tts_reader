@@ -14,12 +14,9 @@ version = 0.2.0
 
 # ─── Requirements ──────────────────────────────────────────────────────────────
 # Core runtime requirements for the Android build.
-# NOTE: coqui-tts (Coqui TTS / XTTS) depends on PyTorch which is extremely
-# large and not currently packaged for python-for-android.  Synthesis on-device
-# is therefore not supported in this iteration.  The app will gracefully degrade:
-# the synthesis worker will log an ImportError and skip chunks.
-# To enable on-device TTS you would need a lighter model (e.g. piper-tts) or an
-# off-device inference server.
+# Edge TTS runs as an online service, so the Android package keeps only the
+# lightweight app/runtime dependencies here. INTERNET permission is required
+# for synthesis.
 requirements = python3,kivy==2.3.0,pyjnius,plyer,ebooklib,beautifulsoup4,lxml,platformdirs
 
 # ─── Display ───────────────────────────────────────────────────────────────────
